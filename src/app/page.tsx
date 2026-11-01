@@ -1,4 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import { 
   Building2, 
   Bot, 
@@ -8,10 +12,9 @@ import {
   Sliders, 
   Cpu, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
-
-export const dynamic = "force-dynamic";
 
 interface Unit {
   id: string;
@@ -19,35 +22,50 @@ interface Unit {
   whatsapp_number: string | null;
   whatsapp_status: string | null;
   ai_financial_enabled: boolean;
-  fup_preventive_enabled: boolean;
-  fup_due_date_enabled: boolean;
-  fup_d3_enabled: boolean;
-  fup_d7_enabled: boolean;
-  fup_d15_enabled: boolean;
-  fup_d30_enabled: boolean;
-  fup_d60_enabled: boolean;
-  fup_d90_enabled: boolean;
 }
 
-export default async function Home() {
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    "https://ryrjgrgelpjswkwehocx.supabase.co";
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "sb_publishable_vH6hRZux8tVGz4WxLwXPdA_b_g5a1FV";
+const DEFAULT_UNITS: Unit[] = [
+  { id: "sede-global", name: "Sede Global (Admin)", whatsapp_number: null, whatsapp_status: "DISCONNECTED", ai_financial_enabled: true },
+  { id: "agua-boa", name: "Agua Boa", whatsapp_number: null, whatsapp_status: "DISCONNECTED", ai_financial_enabled: true },
+  { id: "anapolis", name: "Anápolis", whatsapp_number: null, whatsapp_status: "DISCONNECTED", ai_financial_enabled: true },
+  { id: "aparecida-de-goiania", name: "Aparecida de Goiania", whatsapp_number: null, whatsapp_status: "DISCONNECTED", ai_financial_enabled: true },
+  { id: "bom-jesus", name: "Bom Jesus", whatsapp_number: null, whatsapp_status: "DISCONNECTED", ai_financial_enabled: true },
+  { id: "rio-verde", name: "Rio Verde", whatsapp_number: null, whatsapp_status: "DISCONNECTED", ai_financial_enabled: true },
+];
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+export default function Home() {
+  const [units, setUnits] = useState<Unit[]>(DEFAULT_UNITS);
+  const [loading, setLoading] = useState(false);
+  const [dbConnected, setDbConnected] = useState(true);
 
-  const { data: units, error } = await supabase
-    .from("units")
-    .select("*")
-    .order("name", { ascending: true });
+  async function loadUnits() {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("units")
+        .select("id, name, whatsapp_number, whatsapp_status, ai_financial_enabled")
+        .order("name", { ascending: true });
 
-  const unitList: Unit[] = units || [];
-  const activeBots = unitList.filter((u) => u.ai_financial_enabled).length;
-  const connectedWhatsapp = unitList.filter((u) => u.whatsapp_status === "CONNECTED").length;
+      if (error) {
+        console.warn("Aviso ao consultar Supabase:", error.message);
+        setDbConnected(false);
+      } else if (data && data.length > 0) {
+        setUnits(data);
+        setDbConnected(true);
+      }
+    } catch (err) {
+      console.error("Erro de conexão com o banco:", err);
+      setDbConnected(false);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadUnits();
+  }, []);
+
+  const activeBots = units.filter((u) => u.ai_financial_enabled).length;
+  const connectedWhatsapp = units.filter((u) => u.whatsapp_status === "CONNECTED").length;
 
   return (
     <main className="min-h-screen bg-[#0b1329] text-slate-100 p-6 md:p-10 font-sans">
@@ -90,8 +108,8 @@ export default async function Home() {
           <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Unidades</p>
-              <p className="text-2xl font-bold text-white mt-1">{unitList.length}</p>
-              <p className="text-xs text-slate-500 mt-0.5">Franquias cadastradas</p>
+              <p className="text-2xl font-bold text-white mt-1">{units.length}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Franquias na rede</p>
             </div>
             <div className="w-12 h-12 bg-blue-500/10 text-blue-400 rounded-xl flex items-center justify-center border border-blue-500/20">
               <Building2 className="w-6 h-6" />
@@ -101,7 +119,7 @@ export default async function Home() {
           <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Bots Ativos</p>
-              <p className="text-2xl font-bold text-emerald-400 mt-1">{activeBots} / {unitList.length}</p>
+              <p className="text-2xl font-bold text-emerald-400 mt-1">{activeBots} / {units.length}</p>
               <p className="text-xs text-slate-500 mt-0.5">Agente Financeiro ligado</p>
             </div>
             <div className="w-12 h-12 bg-emerald-500/10 text-emerald-400 rounded-xl flex items-center justify-center border border-emerald-500/20">
@@ -111,9 +129,9 @@ export default async function Home() {
 
           <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">WhatsApp Conectados</p>
-              <p className="text-2xl font-bold text-sky-400 mt-1">{connectedWhatsapp} / {unitList.length}</p>
-              <p className="text-xs text-slate-500 mt-0.5">Instâncias Baileys</p>
+              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">WhatsApp</p>
+              <p className="text-2xl font-bold text-sky-400 mt-1">{connectedWhatsapp} / {units.length}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Instâncias Conectadas</p>
             </div>
             <div className="w-12 h-12 bg-sky-500/10 text-sky-400 rounded-xl flex items-center justify-center border border-sky-500/20">
               <Wifi className="w-6 h-6" />
@@ -132,14 +150,6 @@ export default async function Home() {
           </div>
         </div>
 
-        {/* Alerta de erro de conexão com o banco, se houver */}
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl flex items-center gap-3 text-red-300 text-sm">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <span>Erro ao conectar ao Supabase: {error.message}</span>
-          </div>
-        )}
-
         {/* Lista de Unidades */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
@@ -149,13 +159,22 @@ export default async function Home() {
                 Unidades e Instâncias de Atendimento
               </h2>
               <p className="text-xs text-slate-400">
-                Gestão isolada de chaves, réguas de vencimento e inbox de atendimento
+                Gestão isolada de chaves, réguas de vencimento e simulador
               </p>
             </div>
+
+            <button
+              onClick={loadUnits}
+              disabled={loading}
+              className="flex items-center gap-2 text-xs font-semibold bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 px-3 py-1.5 rounded-xl transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-orange-400" : ""}`} />
+              Atualizar
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {unitList.map((unit) => {
+            {units.map((unit) => {
               const isConnected = unit.whatsapp_status === "CONNECTED";
               return (
                 <div 
@@ -171,7 +190,6 @@ export default async function Home() {
                         <p className="text-xs text-slate-500 font-mono mt-0.5">ID: {unit.id}</p>
                       </div>
 
-                      {/* Status WhatsApp */}
                       <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
                         isConnected 
                           ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" 
@@ -182,7 +200,6 @@ export default async function Home() {
                       </span>
                     </div>
 
-                    {/* Tags de Serviços */}
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-800/80">
                       <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded font-medium ${
                         unit.ai_financial_enabled 
@@ -200,31 +217,23 @@ export default async function Home() {
                     </div>
                   </div>
 
-                  {/* Ações Rápidas por Unidade */}
-                  <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-800">
-                    <button 
-                      type="button"
-                      className="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/50 transition-colors text-center"
+                  {/* Ações com Links Funcionais */}
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-800">
+                    <Link 
+                      href={`/simulator/${unit.id}`}
+                      className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 transition-colors text-xs font-semibold text-center"
                     >
-                      <Cpu className="w-4 h-4 mb-1 text-purple-400" />
-                      <span className="text-[11px] font-medium">Simulador</span>
-                    </button>
+                      <Cpu className="w-4 h-4 text-purple-400" />
+                      Simulador
+                    </Link>
 
-                    <button 
-                      type="button"
-                      className="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/50 transition-colors text-center"
+                    <Link 
+                      href={`/units/${unit.id}`}
+                      className="flex items-center justify-center gap-2 p-2.5 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 border border-orange-500/20 transition-colors text-xs font-semibold text-center"
                     >
-                      <MessageSquare className="w-4 h-4 mb-1 text-blue-400" />
-                      <span className="text-[11px] font-medium">Inbox</span>
-                    </button>
-
-                    <button 
-                      type="button"
-                      className="flex flex-col items-center justify-center p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/50 transition-colors text-center"
-                    >
-                      <Sliders className="w-4 h-4 mb-1 text-orange-400" />
-                      <span className="text-[11px] font-medium">Réguas</span>
-                    </button>
+                      <Sliders className="w-4 h-4 text-orange-400" />
+                      Configurar
+                    </Link>
                   </div>
                 </div>
               );
